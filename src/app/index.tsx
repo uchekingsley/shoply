@@ -1,98 +1,241 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
-  return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+import React, { useState, useMemo } from 'react';
+import {
+  FlatList,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { Palette, Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+import { useRecentlyViewedStore } from '@/store/recently-viewed-store';
+import { useWishlistStore } from '@/store/wishlist-store';
+import {
+  LocationSelector,
+  SearchBarHeader,
+  PromoCarousel,
+  CategoryGrid,
+  SectionHeader,
+  FlashDealsSection,
+} from '@/components/home';
+import { ProductCard, AuthModal } from '@/components/ui';
+import { MOCK_PRODUCTS } from '@/data/mock-data';
+import { Category, Product } from '@/types';
 
 export default function HomeScreen() {
+  const router = useRouter();
+  const theme = useTheme();
+  const recentlyViewed = useRecentlyViewedStore((state) => state.recentlyViewed);
+  const addRecentlyViewed = useRecentlyViewedStore((state) => state.addRecentlyViewed);
+  const toggleWishlist = useWishlistStore((state) => state.toggleWishlist);
+  const isInWishlist = useWishlistStore((state) => state.isInWishlist);
+
+  // Selected category filter
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [authModalVisible, setAuthModalVisible] = useState(false);
+
+  // Filtered lists
+  const flashDeals = useMemo(() => MOCK_PRODUCTS.filter((p) => p.isFlashDeal), []);
+  const bestSellers = useMemo(() => MOCK_PRODUCTS.filter((p) => p.isBestSeller), []);
+
+  const displayedProducts = useMemo(() => {
+    if (selectedCategory) {
+      return MOCK_PRODUCTS.filter((p) => p.categoryId === selectedCategory.id);
+    }
+    return MOCK_PRODUCTS;
+  }, [selectedCategory]);
+
+  const handleOpenProduct = (product: Product) => {
+    addRecentlyViewed(product);
+    router.push(`/product/${product.id}`);
+  };
+
+  const handleCategoryPress = (category: Category) => {
+    setSelectedCategory((prev) => (prev?.id === category.id ? null : category));
+  };
+
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+      <StatusBar
+        barStyle={theme.background === Palette.white ? 'dark-content' : 'light-content'}
+        backgroundColor={theme.background}
+      />
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* 1. Delivery Location Selector */}
+        <LocationSelector />
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
+        {/* 2. Search Bar Header */}
+        <SearchBarHeader
+          onSearchPress={() => router.push('/search' as any)}
+          onCartPress={() => router.push('/explore')}
+        />
+
+        {/* 3. Promotional Carousel */}
+        <PromoCarousel
+          onBannerPress={(_, catId) => {
+            const found = MOCK_PRODUCTS.find((p) => p.categoryId === catId);
+            if (found) {
+              setSelectedCategory({
+                id: catId!,
+                name: found.categoryName ?? 'Category',
+                slug: catId!,
+              });
+            }
+          }}
+        />
+
+        {/* 4. Product Categories */}
+        <SectionHeader
+          title="Categories"
+          subtitle="Explore curated collections"
+          actionText={selectedCategory ? 'Show All' : undefined}
+          onActionPress={selectedCategory ? () => setSelectedCategory(null) : undefined}
+        />
+        <CategoryGrid
+          onCategoryPress={handleCategoryPress}
+          selectedCategoryId={selectedCategory?.id}
+        />
+
+        {/* 5. Flash Deals (Real-time countdown timer) */}
+        {!selectedCategory && flashDeals.length > 0 && (
+          <FlashDealsSection
+            products={flashDeals}
+            onProductPress={handleOpenProduct}
+            onWishlistPress={() => setAuthModalVisible(true)}
           />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
+        )}
 
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+        {/* 6. Best Sellers */}
+        {!selectedCategory && bestSellers.length > 0 && (
+          <View style={styles.sectionBlock}>
+            <SectionHeader
+              title="Best Sellers"
+              subtitle="Most popular items in Nigeria"
+            />
+            <FlatList
+              data={bestSellers}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+              renderItem={({ item }) => (
+                <View style={styles.horizontalCardWrapper}>
+                  <ProductCard
+                    product={item}
+                    onPress={handleOpenProduct}
+                    isWishlisted={isInWishlist(item.id)}
+                    onWishlistPress={() => toggleWishlist(item)}
+                  />
+                </View>
+              )}
+            />
+          </View>
+        )}
+
+        {/* 7. Recommended Products / Filtered Category Grid */}
+        <View style={styles.sectionBlock}>
+          <SectionHeader
+            title={selectedCategory ? selectedCategory.name : 'Recommended For You'}
+            subtitle={
+              selectedCategory
+                ? `${displayedProducts.length} items found`
+                : 'Top picks tailored to your style'
+            }
+          />
+          <View style={styles.productGrid}>
+            {displayedProducts.map((product) => (
+              <View key={product.id} style={styles.gridCardWrapper}>
+                <ProductCard
+                  product={product}
+                  onPress={handleOpenProduct}
+                  onWishlistPress={() => setAuthModalVisible(true)}
+                />
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* 8. Recently Viewed Products */}
+        {recentlyViewed.length > 0 && (
+          <View style={styles.sectionBlock}>
+            <SectionHeader
+              title="Recently Viewed"
+              subtitle="Quickly return to items you inspected"
+            />
+            <FlatList
+              data={recentlyViewed}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+              renderItem={({ item }) => (
+                <View style={styles.horizontalCardWrapper}>
+                  <ProductCard
+                    product={item}
+                    onPress={handleOpenProduct}
+                    isWishlisted={isInWishlist(item.id)}
+                    onWishlistPress={() => toggleWishlist(item)}
+                  />
+                </View>
+              )}
+            />
+          </View>
+        )}
+
+        <View style={styles.bottomSpacer} />
+      </ScrollView>
+
+      {/* Guest Wishlist Auth Prompt */}
+      <AuthModal
+        visible={authModalVisible}
+        title="Account Required"
+        description="Guests can freely browse and build a cart, but wishlists, saved orders, and checkout require signing in."
+        onClose={() => setAuthModalVisible(false)}
+        onConfirm={() => setAuthModalVisible(false)}
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
   safeArea: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
   },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  scrollView: {
     flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
   },
-  title: {
-    textAlign: 'center',
+  scrollContent: {
+    paddingBottom: Spacing.xxxl,
   },
-  code: {
-    textTransform: 'uppercase',
+  sectionBlock: {
+    marginVertical: Spacing.xs,
   },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  horizontalList: {
+    paddingHorizontal: Spacing.lg,
+    gap: Spacing.md,
+  },
+  horizontalCardWrapper: {
+    width: 170,
+  },
+  productGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: Spacing.lg,
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+  },
+  gridCardWrapper: {
+    width: '47.5%',
+  },
+  bottomSpacer: {
+    height: 70,
   },
 });

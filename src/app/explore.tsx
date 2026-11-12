@@ -1,180 +1,261 @@
-import { Image } from 'expo-image';
-import { SymbolView } from 'expo-symbols';
-import { Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { ExternalLink } from '@/components/external-link';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Collapsible } from '@/components/ui/collapsible';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import React, { useState } from 'react';
+import {
+  Modal,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { Palette, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { useCart } from '@/context/cart-context';
+import { AppButton, AuthModal } from '@/components/ui';
+import {
+  CartEmptyState,
+  CartItemRow,
+  CartPromoCode,
+  CartOrderSummary,
+} from '@/components/cart';
 
-export default function TabTwoScreen() {
-  const safeAreaInsets = useSafeAreaInsets();
-  const insets = {
-    ...safeAreaInsets,
-    bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
-  };
+export default function CartScreen() {
   const theme = useTheme();
+  const router = useRouter();
+  const {
+    items,
+    updateQuantity,
+    removeFromCart,
+    clearCart,
+    summary,
+    selectedAddress,
+    applyPromoCode,
+    removePromoCode,
+    appliedPromo,
+  } = useCart();
 
-  const contentPlatformStyle = Platform.select({
-    android: {
-      paddingTop: insets.top,
-      paddingLeft: insets.left,
-      paddingRight: insets.right,
-      paddingBottom: insets.bottom,
-    },
-    web: {
-      paddingTop: Spacing.six,
-      paddingBottom: Spacing.four,
-    },
-  });
+  const [authModalVisible, setAuthModalVisible] = useState(false);
+  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
 
   return (
-    <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
-      <ThemedView style={styles.container}>
-        <ThemedView style={styles.titleContainer}>
-          <ThemedText type="subtitle">Explore</ThemedText>
-          <ThemedText style={styles.centerText} themeColor="textSecondary">
-            This starter app includes example{'\n'}code to help you get started.
-          </ThemedText>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
+      <StatusBar
+        barStyle={theme.background === Palette.white ? 'dark-content' : 'light-content'}
+        backgroundColor={theme.background}
+      />
 
-          <ExternalLink href="https://docs.expo.dev" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedView type="backgroundElement" style={styles.linkButton}>
-                <ThemedText type="link">Expo documentation</ThemedText>
-                <SymbolView
-                  tintColor={theme.text}
-                  name={{ ios: 'arrow.up.right.square', android: 'link', web: 'link' }}
-                  size={12}
-                />
-              </ThemedView>
-            </Pressable>
-          </ExternalLink>
-        </ThemedView>
+      {/* Screen Header */}
+      <View style={[styles.header, { borderBottomColor: theme.border }]}>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>
+          Shopping Cart ({items.length})
+        </Text>
+        {items.length > 0 && (
+          <Pressable onPress={clearCart} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={[styles.clearText, { color: theme.error }]}>Clear</Text>
+          </Pressable>
+        )}
+      </View>
 
-        <ThemedView style={styles.sectionsWrapper}>
-          <Collapsible title="File-based routing">
-            <ThemedText type="small">
-              This app has two screens: <ThemedText type="code">src/app/index.tsx</ThemedText> and{' '}
-              <ThemedText type="code">src/app/explore.tsx</ThemedText>
-            </ThemedText>
-            <ThemedText type="small">
-              The layout file in <ThemedText type="code">src/app/_layout.tsx</ThemedText> sets up
-              the tab navigator.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/router/introduction">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Android, iOS, and web support">
-            <ThemedView type="backgroundElement" style={styles.collapsibleContent}>
-              <ThemedText type="small">
-                You can open this project on Android, iOS, and the web. To open the web version,
-                press <ThemedText type="smallBold">w</ThemedText> in the terminal running this
-                project.
-              </ThemedText>
-              <Image
-                source={require('@/assets/images/tutorial-web.png')}
-                style={styles.imageTutorial}
+      {items.length === 0 ? (
+        <CartEmptyState onStartShopping={() => router.push('/')} />
+      ) : (
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Cart Items List */}
+          <View style={styles.itemsSection}>
+            {items.map((item) => (
+              <CartItemRow
+                key={item.id}
+                item={item}
+                onIncrease={(itemId, currentQty) => updateQuantity(itemId, currentQty + 1)}
+                onDecrease={(itemId, currentQty) => updateQuantity(itemId, currentQty - 1)}
+                onRemove={(itemId) => removeFromCart(itemId)}
               />
-            </ThemedView>
-          </Collapsible>
+            ))}
+          </View>
 
-          <Collapsible title="Images">
-            <ThemedText type="small">
-              For static images, you can use the <ThemedText type="code">@2x</ThemedText> and{' '}
-              <ThemedText type="code">@3x</ThemedText> suffixes to provide files for different
-              screen densities.
-            </ThemedText>
-            <Image source={require('@/assets/images/react-logo.png')} style={styles.imageReact} />
-            <ExternalLink href="https://reactnative.dev/docs/images">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
+          {/* Delivery Location Banner */}
+          {selectedAddress && (
+            <View
+              style={[
+                styles.deliveryBanner,
+                {
+                  backgroundColor: theme.backgroundSecondary,
+                  borderColor: theme.border,
+                },
+              ]}
+            >
+              <Text style={styles.deliveryBannerIcon}>📍</Text>
+              <View style={styles.deliveryBannerText}>
+                <Text style={[styles.deliveryBannerTitle, { color: theme.text }]}>
+                  Delivery to {selectedAddress.cityOrLGA}, {selectedAddress.state}
+                </Text>
+                <Text style={[styles.deliveryBannerSub, { color: theme.textSecondary }]}>
+                  {selectedAddress.streetAddress}
+                </Text>
+              </View>
+            </View>
+          )}
 
-          <Collapsible title="Light and dark mode components">
-            <ThemedText type="small">
-              This template has light and dark mode support. The{' '}
-              <ThemedText type="code">useColorScheme()</ThemedText> hook lets you inspect what the
-              user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
+          {/* Promo Code Input Section */}
+          <CartPromoCode
+            appliedPromo={appliedPromo}
+            onApplyPromo={applyPromoCode}
+            onRemovePromo={removePromoCode}
+          />
 
-          <Collapsible title="Animations">
-            <ThemedText type="small">
-              This template includes an example of an animated component. The{' '}
-              <ThemedText type="code">src/components/ui/collapsible.tsx</ThemedText> component uses
-              the powerful <ThemedText type="code">react-native-reanimated</ThemedText> library to
-              animate opening this hint.
-            </ThemedText>
-          </Collapsible>
-        </ThemedView>
-        {Platform.OS === 'web' && <WebBadge />}
-      </ThemedView>
-    </ScrollView>
+          {/* Order Summary */}
+          <CartOrderSummary summary={summary} />
+
+          {/* Checkout CTA */}
+          <View style={styles.checkoutActionContainer}>
+            <AppButton
+              title="Proceed to Checkout"
+              variant="primary"
+              fullWidth
+              onPress={() => setAuthModalVisible(true)}
+            />
+          </View>
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      )}
+
+      {/* Guest Authentication Modal on Checkout */}
+      <AuthModal
+        visible={authModalVisible}
+        title="Sign In to Complete Checkout"
+        description="Per Shoply requirements, guests can build and manage a cart freely, but completing payment and delivery requires an authenticated account. Your cart items will be preserved!"
+        confirmLabel="Sign In with Phone / Email"
+        cancelLabel="Back to Cart"
+        onClose={() => setAuthModalVisible(false)}
+        onConfirm={() => {
+          setAuthModalVisible(false);
+          setCheckoutSuccess(true);
+        }}
+      />
+
+      {/* Demo Checkout Order Placed Feedback */}
+      <Modal
+        visible={checkoutSuccess}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCheckoutSuccess(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.authModalCard, { backgroundColor: theme.surface }]}>
+            <Text style={styles.authModalIcon}>🎉</Text>
+            <Text style={[styles.authModalTitle, { color: theme.text }]}>
+              Order Initiated!
+            </Text>
+            <Text style={[styles.authModalDesc, { color: theme.textSecondary }]}>
+              Cart items validated with backend stock authority. Ready for payment via Card, Bank Transfer, or Cash on Delivery.
+            </Text>
+            <AppButton
+              title="Return to Store"
+              variant="primary"
+              fullWidth
+              onPress={() => {
+                clearCart();
+                setCheckoutSuccess(false);
+                router.push('/');
+              }}
+              style={{ marginTop: Spacing.md }}
+            />
+          </View>
+        </View>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
+  header: {
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    borderBottomWidth: 1,
+  },
+  headerTitle: {
+    ...Typography.sectionHeading,
+    fontSize: 18,
+  },
+  clearText: {
+    ...Typography.bodySmall,
+    fontWeight: '600',
+  },
   scrollView: {
     flex: 1,
   },
-  contentContainer: {
+  scrollContent: {
+    padding: Spacing.lg,
+    gap: Spacing.md,
+  },
+  itemsSection: {
+    gap: Spacing.md,
+  },
+  deliveryBanner: {
     flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    gap: Spacing.sm,
+  },
+  deliveryBannerIcon: {
+    fontSize: 20,
+  },
+  deliveryBannerText: {
+    flex: 1,
+  },
+  deliveryBannerTitle: {
+    ...Typography.bodySmall,
+    fontWeight: '700',
+  },
+  deliveryBannerSub: {
+    ...Typography.supporting,
+  },
+  checkoutActionContainer: {
+    marginTop: Spacing.sm,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
-  },
-  container: {
-    maxWidth: MaxContentWidth,
-    flexGrow: 1,
-  },
-  titleContainer: {
-    gap: Spacing.three,
     alignItems: 'center',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.six,
+    padding: Spacing.lg,
   },
-  centerText: {
-    textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  linkButton: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.five,
-    justifyContent: 'center',
-    gap: Spacing.one,
-    alignItems: 'center',
-  },
-  sectionsWrapper: {
-    gap: Spacing.five,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
-  },
-  collapsibleContent: {
-    alignItems: 'center',
-  },
-  imageTutorial: {
+  authModalCard: {
     width: '100%',
-    aspectRatio: 296 / 171,
-    borderRadius: Spacing.three,
-    marginTop: Spacing.two,
+    maxWidth: 380,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.xl,
+    alignItems: 'center',
   },
-  imageReact: {
-    width: 100,
-    height: 100,
-    alignSelf: 'center',
+  authModalIcon: {
+    fontSize: 40,
+    marginBottom: Spacing.sm,
+  },
+  authModalTitle: {
+    ...Typography.sectionHeading,
+    fontSize: 19,
+    textAlign: 'center',
+    marginBottom: Spacing.xs,
+  },
+  authModalDesc: {
+    ...Typography.bodySmall,
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
+    lineHeight: 20,
   },
 });

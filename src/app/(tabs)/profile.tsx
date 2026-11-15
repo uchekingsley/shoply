@@ -7,6 +7,7 @@ import {
   View,
   ScrollView,
   Pressable,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -14,15 +15,46 @@ import { Palette, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useWishlistStore } from '@/store/wishlist-store';
 import { useCartStore } from '@/store/cart-store';
+import { useAuthStore } from '@/store/auth-store';
 import { AppButton, AuthModal } from '@/components/ui';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const theme = useTheme();
 
+  const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const logout = useAuthStore((state) => state.logout);
+  const addresses = useAuthStore((state) => state.addresses);
+
   const [authModalVisible, setAuthModalVisible] = useState(false);
   const wishlistCount = useWishlistStore((state) => state.wishlist.length);
   const cartUnits = useCartStore((state) => state.getTotalUnits());
+
+  const handleOrdersClick = () => {
+    if (!isAuthenticated) {
+      setAuthModalVisible(true);
+    } else {
+      Alert.alert(
+        'Order History',
+        'You have no active orders yet. Orders you place will show here with real-time delivery status.'
+      );
+    }
+  };
+
+  const handleAddressClick = () => {
+    if (!isAuthenticated) {
+      setAuthModalVisible(true);
+    } else {
+      Alert.alert(
+        'Address Book',
+        `You have ${addresses.length} saved addresses:\n\n` +
+          addresses
+            .map((a) => `• ${a.fullName} (${a.cityOrLGA}, ${a.state})${a.isDefault ? ' [DEFAULT]' : ''}`)
+            .join('\n')
+      );
+    }
+  };
 
   const menuSections = [
     {
@@ -32,8 +64,8 @@ export default function ProfileScreen() {
           id: 'orders',
           label: 'My Orders',
           icon: 'receipt-outline' as const,
-          badge: null,
-          action: () => setAuthModalVisible(true),
+          badge: isAuthenticated ? '0 Active' : 'Login needed',
+          action: handleOrdersClick,
         },
         {
           id: 'wishlist',
@@ -58,22 +90,29 @@ export default function ProfileScreen() {
           id: 'delivery',
           label: 'Delivery Addresses',
           icon: 'location-outline' as const,
-          badge: '1 Saved',
-          action: () => setAuthModalVisible(true),
+          badge: `${addresses.length} Saved`,
+          action: handleAddressClick,
         },
         {
           id: 'currency',
           label: 'Market & Currency',
           icon: 'cash-outline' as const,
           badge: 'Nigeria (₦ NGN)',
-          action: () => {},
+          action: () => {
+            Alert.alert('Market Currency', 'Shoply is configured for Nigeria with Nigerian Naira (₦).');
+          },
         },
         {
-          id: 'help',
-          label: 'Help & Customer Support',
-          icon: 'help-circle-outline' as const,
-          badge: null,
-          action: () => {},
+          id: 'support',
+          label: 'Customer Support',
+          icon: 'chatbubbles-outline' as const,
+          badge: '24/7 Care',
+          action: () => {
+            Alert.alert(
+              'Customer Support',
+              'For order queries or delivery assistance, reach our Lagos support team at support@shoply.ng'
+            );
+          },
         },
       ],
     },
@@ -96,29 +135,72 @@ export default function ProfileScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Guest Banner */}
-        <View
-          style={[
-            styles.guestCard,
-            { backgroundColor: theme.surface, borderColor: theme.border },
-          ]}
-        >
-          <View style={styles.avatarPlaceholder}>
-            <Ionicons name="person" size={32} color={Palette.actionOrange} />
+        {/* User Card: Authenticated vs Guest */}
+        {isAuthenticated && user ? (
+          <View
+            style={[
+              styles.userCard,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+          >
+            <View style={styles.userHeader}>
+              <View style={styles.avatarCircle}>
+                <Text style={styles.avatarInitials}>
+                  {user.fullName
+                    .split(' ')
+                    .map((n) => n[0])
+                    .join('')
+                    .toUpperCase()
+                    .slice(0, 2) || 'SC'}
+                </Text>
+              </View>
+              <View style={styles.userInfo}>
+                <Text style={[styles.userName, { color: theme.text }]}>{user.fullName}</Text>
+                <Text style={[styles.userEmail, { color: theme.textSecondary }]}>
+                  {user.phoneNumber || user.email}
+                </Text>
+                <View style={styles.badgePill}>
+                  <Text style={styles.badgePillText}>Shoply Customer</Text>
+                </View>
+              </View>
+            </View>
+
+            <AppButton
+              title="Sign Out"
+              variant="destructive"
+              size="compact"
+              onPress={() => {
+                Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Sign Out', style: 'destructive', onPress: logout },
+                ]);
+              }}
+            />
           </View>
-          <View style={styles.guestInfo}>
-            <Text style={[styles.guestTitle, { color: theme.text }]}>Welcome, Guest</Text>
-            <Text style={[styles.guestSubtitle, { color: theme.textSecondary }]}>
-              Sign in to sync your cart across devices and view your orders.
-            </Text>
+        ) : (
+          <View
+            style={[
+              styles.guestCard,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+            ]}
+          >
+            <View style={styles.avatarPlaceholder}>
+              <Ionicons name="person" size={32} color={Palette.actionOrange} />
+            </View>
+            <View style={styles.guestInfo}>
+              <Text style={[styles.guestTitle, { color: theme.text }]}>Welcome to Shoply</Text>
+              <Text style={[styles.guestSubtitle, { color: theme.textSecondary }]}>
+                Sign in to sync your cart across devices, save wishlists, and track deliveries.
+              </Text>
+            </View>
+            <AppButton
+              title="Sign In / Register"
+              variant="primary"
+              size="compact"
+              onPress={() => setAuthModalVisible(true)}
+            />
           </View>
-          <AppButton
-            title="Sign In / Register"
-            variant="primary"
-            size="compact"
-            onPress={() => setAuthModalVisible(true)}
-          />
-        </View>
+        )}
 
         {/* Menu Sections */}
         {menuSections.map((sec) => (
@@ -138,7 +220,10 @@ export default function ProfileScreen() {
                   onPress={item.action}
                   style={({ pressed }) => [
                     styles.menuRow,
-                    idx < sec.items.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.border },
+                    idx < sec.items.length - 1 && {
+                      borderBottomWidth: 1,
+                      borderBottomColor: theme.border,
+                    },
                     pressed && { opacity: 0.7 },
                   ]}
                 >
@@ -163,16 +248,14 @@ export default function ProfileScreen() {
         ))}
 
         <Text style={[styles.footerVersion, { color: theme.textSecondary }]}>
-          Shoply Single-Vendor Store • v1.0.0
+          Shoply Single-Vendor Store • v1.0.0 (Nigeria)
         </Text>
       </ScrollView>
 
       <AuthModal
         visible={authModalVisible}
         title="Sign In to Shoply"
-        description="Access your saved orders, synced cart, and account profile."
         onClose={() => setAuthModalVisible(false)}
-        onConfirm={() => setAuthModalVisible(false)}
       />
     </SafeAreaView>
   );
@@ -225,7 +308,57 @@ const styles = StyleSheet.create({
   guestSubtitle: {
     ...Typography.supporting,
     textAlign: 'center',
-    maxWidth: 240,
+    maxWidth: 260,
+    lineHeight: 18,
+  },
+  userCard: {
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    gap: Spacing.md,
+  },
+  userHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  avatarCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Palette.brandNavy,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  avatarInitials: {
+    color: Palette.white,
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  userInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  userName: {
+    ...Typography.productName,
+    fontSize: 17,
+  },
+  userEmail: {
+    ...Typography.supporting,
+  },
+  badgePill: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#FFF2EA',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: BorderRadius.full,
+    marginTop: 4,
+  },
+  badgePillText: {
+    ...Typography.supporting,
+    fontSize: 10,
+    color: Palette.actionOrange,
+    fontWeight: '700',
   },
   section: {
     gap: Spacing.xs,

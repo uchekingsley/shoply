@@ -16,6 +16,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { useWishlistStore } from '@/store/wishlist-store';
 import { useCartStore } from '@/store/cart-store';
 import { useAuthStore } from '@/store/auth-store';
+import { useOrderStore } from '@/store/order-store';
 import { AppButton, AuthModal } from '@/components/ui';
 
 export default function ProfileScreen() {
@@ -26,33 +27,32 @@ export default function ProfileScreen() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const logout = useAuthStore((state) => state.logout);
   const addresses = useAuthStore((state) => state.addresses);
+  const orders = useOrderStore((state) => state.orders);
 
   const [authModalVisible, setAuthModalVisible] = useState(false);
+  const [pendingRoute, setPendingRoute] = useState<'/orders' | '/addresses' | null>(null);
   const wishlistCount = useWishlistStore((state) => state.wishlist.length);
   const cartUnits = useCartStore((state) => state.getTotalUnits());
 
+  const activeOrderCount = orders.filter(
+    (o) => o.status !== 'Delivered' && o.status !== 'Cancelled'
+  ).length;
+
   const handleOrdersClick = () => {
     if (!isAuthenticated) {
+      setPendingRoute('/orders');
       setAuthModalVisible(true);
     } else {
-      Alert.alert(
-        'Order History',
-        'You have no active orders yet. Orders you place will show here with real-time delivery status.'
-      );
+      router.push('/orders');
     }
   };
 
   const handleAddressClick = () => {
     if (!isAuthenticated) {
+      setPendingRoute('/addresses');
       setAuthModalVisible(true);
     } else {
-      Alert.alert(
-        'Address Book',
-        `You have ${addresses.length} saved addresses:\n\n` +
-          addresses
-            .map((a) => `• ${a.fullName} (${a.cityOrLGA}, ${a.state})${a.isDefault ? ' [DEFAULT]' : ''}`)
-            .join('\n')
-      );
+      router.push('/addresses');
     }
   };
 
@@ -64,7 +64,7 @@ export default function ProfileScreen() {
           id: 'orders',
           label: 'My Orders',
           icon: 'receipt-outline' as const,
-          badge: isAuthenticated ? '0 Active' : 'Login needed',
+          badge: isAuthenticated ? `${activeOrderCount} Active` : 'Login needed',
           action: handleOrdersClick,
         },
         {
@@ -255,7 +255,18 @@ export default function ProfileScreen() {
       <AuthModal
         visible={authModalVisible}
         title="Sign In to Shoply"
-        onClose={() => setAuthModalVisible(false)}
+        onClose={() => {
+          setAuthModalVisible(false);
+          setPendingRoute(null);
+        }}
+        onConfirm={() => {
+          setAuthModalVisible(false);
+          if (pendingRoute) {
+            const target = pendingRoute;
+            setPendingRoute(null);
+            router.push(target);
+          }
+        }}
       />
     </SafeAreaView>
   );

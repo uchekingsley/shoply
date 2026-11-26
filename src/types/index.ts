@@ -112,3 +112,33 @@ export interface User {
   addresses: DeliveryAddress[];
   defaultAddressId?: string;
 }
+
+export type PaymentMethod = 'card' | 'transfer' | 'cod';
+
+export type OrderStatus = 'Processing' | 'Packed' | 'In Transit' | 'Delivered' | 'Cancelled';
+
+export interface OrderItem {
+  productId: string;
+  productName: string;
+  variationName?: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  image?: string;
+}
+
+export interface Order {
+  id: string;
+  createdAt: string;
+  status: OrderStatus;
+  timelineStep: 1 | 2 | 3 | 4; // 1: Confirmed, 2: Packed, 3: Out for Delivery, 4: Delivered
+  paymentMethod: PaymentMethod;
+  paymentLabel: string;
+  deliveryAddress: DeliveryAddress;
+  items: OrderItem[];
+  subtotal: number;
+  discount: number;
+  deliveryFee: number;
+  total: number;
+  promoCode?: string;
+}

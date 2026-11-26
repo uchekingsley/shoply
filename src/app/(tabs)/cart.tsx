@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import {
-  Modal,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -13,6 +12,7 @@ import { useRouter } from 'expo-router';
 import { Palette, Typography, Spacing, BorderRadius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { useCartStore } from '@/store/cart-store';
+import { useAuthStore } from '@/store/auth-store';
 import { AppButton, AuthModal } from '@/components/ui';
 import {
   CartEmptyState,
@@ -34,9 +34,17 @@ export default function CartScreen() {
   const removePromoCode = useCartStore((state) => state.removePromoCode);
   const appliedPromo = useCartStore((state) => state.appliedPromo);
   const summary = useCartStore((state) => state.getSummary());
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   const [authModalVisible, setAuthModalVisible] = useState(false);
-  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+
+  const handleCheckoutPress = () => {
+    if (!isAuthenticated) {
+      setAuthModalVisible(true);
+      return;
+    }
+    router.push('/checkout');
+  };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.background }]}>
@@ -92,7 +100,8 @@ export default function CartScreen() {
           />
 
           {/* 3. Delivery Address Preview */}
-          <View
+          <Pressable
+            onPress={() => router.push('/addresses')}
             style={[
               styles.addressCard,
               {
@@ -105,13 +114,13 @@ export default function CartScreen() {
               <Text style={[styles.addressTitle, { color: theme.text }]}>
                 Delivery Destination
               </Text>
-              <Text style={styles.badge}>{selectedAddress?.isDefault ? 'Default' : 'Saved'}</Text>
+              <Text style={styles.badge}>Change ›</Text>
             </View>
             <Text style={[styles.addressText, { color: theme.textSecondary }]}>
               {selectedAddress?.fullName} • {selectedAddress?.streetAddress},{' '}
               {selectedAddress?.cityOrLGA}, {selectedAddress?.state}
             </Text>
-          </View>
+          </Pressable>
 
           {/* 4. Order Summary */}
           <CartOrderSummary summary={summary} />
@@ -122,7 +131,7 @@ export default function CartScreen() {
               title="Proceed to Checkout"
               variant="primary"
               size="standard"
-              onPress={() => setCheckoutSuccess(true)}
+              onPress={handleCheckoutPress}
             />
             <Text style={[styles.checkoutHint, { color: theme.textSecondary }]}>
               By proceeding, prices and stock will be revalidated
@@ -139,38 +148,9 @@ export default function CartScreen() {
         onClose={() => setAuthModalVisible(false)}
         onConfirm={() => {
           setAuthModalVisible(false);
-          setCheckoutSuccess(true);
+          router.push('/checkout');
         }}
       />
-
-      {/* Mock checkout success dialog */}
-      <Modal
-        visible={checkoutSuccess}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setCheckoutSuccess(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.surface }]}>
-            <View style={styles.successIconCircle}>
-              <Text style={styles.successCheck}>✓</Text>
-            </View>
-            <Text style={[styles.modalTitle, { color: theme.text }]}>Order Placed!</Text>
-            <Text style={[styles.modalDesc, { color: theme.textSecondary }]}>
-              Thank you! Your simulated single-vendor order will be processed and dispatched soon.
-            </Text>
-            <AppButton
-              title="Back to Home"
-              variant="primary"
-              onPress={() => {
-                setCheckoutSuccess(false);
-                clearCart();
-                router.push('/');
-              }}
-            />
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }

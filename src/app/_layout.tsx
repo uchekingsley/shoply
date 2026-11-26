@@ -26,6 +26,10 @@ export default function RootLayout() {
             presentation: 'card',
           }}
         />
+        <Stack.Screen name="addresses" options={{ headerShown: false }} />
+        <Stack.Screen name="orders" options={{ headerShown: false }} />
+        <Stack.Screen name="order/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="checkout" options={{ headerShown: false }} />
       </Stack>
     </ThemeProvider>
   );
